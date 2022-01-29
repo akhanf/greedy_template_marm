@@ -1,6 +1,7 @@
 from os.path import join
 import itertools
 import pandas as pd
+from snakebids import bids
 
 configfile: 'config/config.yml'
 
@@ -27,27 +28,10 @@ wildcard_constraints:
 
 
 
-rule all_composite_warps:
-    input: expand('results/composite/sub-{subject}_to-{template}_via-cohort_{warptype}.nii.gz',\
-                    template=config['std_template_name'],\
-                    warptype=['CompositeWarp','CompositeInverseWarp'],\
-                    subject=all_subjects)
+rule all_iter:
+    input:
+         expand('results/cohort-{cohort}/iter_{iter}/template_{channel}.nii.gz',cohort=cohorts,channel=channels,iter=config['max_iters'])
 
-
-if config['run_iter'] != None:
-    rule all_iter:
-        input:
-             expand('results/cohort-{cohort}/iter_{iter}/template_{channel}.nii.gz',cohort=cohorts,channel=channels,iter=config['run_iter'])
-else:
-    rule all_finaltemplate:
-        input:
-            json = 'results/tpl-{name}/template_description.json'.format(name=config['template_name'])
-
-
-
-include: 'rules/common.smk'
-include: 'rules/reg_t2_to_t1.smk'
+include: 'rules/preproc_t2.smk'
 include: 'rules/ants_template.smk'
-include: 'rules/templateflow.smk'
-include: 'rules/cohort_template_to_std.smk'
 

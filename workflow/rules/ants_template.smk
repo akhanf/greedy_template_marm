@@ -23,17 +23,11 @@ rule get_existing_template:
 rule set_init_template:
     input:
         'results/cohort-{cohort}/iter_0/init/init_avg_template_{channel}.nii.gz' if config['init_template'] == None else 'results/cohort-{cohort}/iter_0/init/existing_template_{channel}.nii.gz'
-    params: 
-        cmd = lambda wildcards, input, output:
-                'ResampleImageBySpacing {dim} {input} {output} {vox_dims}'.format(
-                        dim = config['ants']['dim'], input = input, output = output,
-                        vox_dims=' '.join([str(d) for d in config['resample_vox_dims']]))
-                     if config['resample_init_template'] else f"cp -v {input} {output}"
     output: 'results/cohort-{cohort}/iter_0/template_{channel}.nii.gz'
     log: 'logs/set_init_template_{channel}_{cohort}.log'
     group: 'init_template'
     container: config['singularity']['ants']
-    shell: '{params.cmd} &> {log}'
+    shell: 'cp -v {input} {output}'
 
 rule reg_to_template:
     input: 
@@ -43,6 +37,7 @@ rule reg_to_template:
     params:
         input_fixed_moving = lambda wildcards, input: [f'-i {fixed} {moving}' for fixed,moving in zip(input.template, input.target) ],
         input_moving_warped = lambda wildcards, input, output: [f'-rm {moving} {warped}' for moving,warped in zip(input.target,output.warped) ],
+        smoothing = lambda wildcards: "-s {smoothing}".format(smoothing=config['greedy_smoothing_schedule'][int(wildcards.iteration)])
     output:
         warp = 'results/cohort-{cohort}/iter_{iteration}/sub-{subject}_1Warp.nii.gz',
         invwarp = 'results/cohort-{cohort}/iter_{iteration}/sub-{subject}_1InverseWarp.nii.gz',
@@ -61,7 +56,7 @@ rule reg_to_template:
         #affine first
         'greedy -d 3 -threads {threads} -a -m NCC 2x2x2 {params.input_fixed_moving} -o {output.affine_xfm_ras} -ia-image-centers -n 100x50x10 &> {log} && '
         #then deformable:
-        'greedy -d 3 -threads {threads} -m NCC 2x2x2 {params.input_fixed_moving} -it {output.affine_xfm_ras} -o {output.warp} -oinv {output.invwarp} -n 100x50x10 &>> {log} && '
+        'greedy -d 3 -threads {threads} -m NCC 2x2x2 {params.smoothing} {params.input_fixed_moving} -it {output.affine_xfm_ras} -o {output.warp} -oinv {output.invwarp} -n 100x50x10 &>> {log} && '
         #then convert affine to itk format that ants uses
         'c3d_affine_tool {output.affine_xfm_ras} -oitk {output.affine} &>> {log} && '
         #and finally warp the moving image
@@ -142,12 +137,25 @@ rule apply_template_update:
     params:
         dim = '-d {dim}'.format(dim = config['ants']['dim'])
     output:
-        template =  'results/cohort-{cohort}/iter_{iteration}/template_{channel}.nii.gz'
+        template =  temp('results/cohort-{cohort}/iter_{iteration}/templateupd_{channel}.nii.gz')
     log: 'logs/apply_template_update/cohort-{cohort}/iter_{iteration}_{channel}_{cohort}.log'
     group: 'shape_update'
     container: config['singularity']['ants']
     shell:
         'antsApplyTransforms {params.dim} --float 1 --verbose 1 -i {input.template} -o {output.template} -t [{input.affine},1] '
         ' -t {input.invwarp} -t {input.invwarp} -t {input.invwarp} -t {input.invwarp} -r {input.template} &> {log}' #apply warp 4 times
+
+
+#resample the template to a new resolution, based on the schedule in config
+rule resample_template:
+    input:
+        template =  'results/cohort-{cohort}/iter_{iteration}/templateupd_{channel}.nii.gz'
+    params:
+        resample = lambda wildcards: config['resample_at_iter'].get(wildcards.iteration,'100x100x100%') 
+    output:
+        template =  'results/cohort-{cohort}/iter_{iteration}/template_{channel}.nii.gz'
+    group: 'shape_update'
+    shell:
+        'c3d {input} -resample {params.resample} {output}'
 
 

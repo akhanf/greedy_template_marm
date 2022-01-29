@@ -1,16 +1,14 @@
-#these can come from fmriprep:
-in_preproc_T1w: '/scratch/sudesnac/CamCAN/fmriprep_20.2.0/sub-{subject}/anat/sub-{subject}_desc-preproc_T1w.nii.gz'
-in_brainmask_T1w: '/scratch/sudesnac/CamCAN/fmriprep_20.2.0/sub-{subject}/anat/sub-{subject}_desc-brain_mask.nii.gz'
-
 #this can come from raw bids:
-in_raw_T2w: '/project/6050199/akhanf/ext-bids/cam-can/bids/combined/sub-{subject}/anat/sub-{subject}_T2w.nii.gz'
+in_raw_T2w: '/srv/cbs/conp_project/MarmosetEverling/ProcessedData/T2w/t2_{subject}.nii.gz'
 
 #for template building - mix of fmriprep and internally processed-data
 in_images:
-  T1w: 'results/preproc/sub-{subject}/sub-{subject}_desc-brain_T1w.nii.gz'
-  T2w: 'results/preproc/sub-{subject}/sub-{subject}_space-T1w_desc-brain_T2w.nii.gz'
-  GM:  '/scratch/sudesnac/CamCAN/fmriprep_20.2.0/sub-{subject}/anat/sub-{subject}_label-GM_probseg.nii.gz'
-  WM:  '/scratch/sudesnac/CamCAN/fmriprep_20.2.0/sub-{subject}/anat/sub-{subject}_label-WM_probseg.nii.gz'
+  T2w: 'results/preproc/sub-{subject}/sub-{subject}_desc-n4_T2w.nii.gz'
+
+  #assumes that templateflow templates are linked in resources folder
+init_template:
+  T2w: 'results/preproc/sub-Birk/sub-Birk_desc-pad_T2w.nii.gz'
+
 
 
 #for naming the final files in templateflow output
@@ -23,22 +21,14 @@ bids_suffix:
 
 
 cohorts:
-  - young
-  - middle1
-  - middle2
-  - old1
-  - old2
+  - marm
 
 participants_tsv:
-  young: 'config/participants_young.tsv'
-  middle1: 'config/participants_middle1.tsv'
-  middle2: 'config/participants_middle2.tsv'
-  old1: 'config/participants_old1.tsv'
-  old2: 'config/participants_old2.tsv'
+  marm: 'config/participants_marm.tsv'
 
 
 #for templateflow-style output
-template_name: 'CamCAN'  #tpl-{template_name} 
+template_name: 'marm'  #tpl-{template_name} 
 
 
 
@@ -58,13 +48,6 @@ template_description_extras:
   TemplateFlowVersion: '1.0.0'
 
 
-#assumes that templateflow templates are linked in resources folder
-init_template:
-  T1w: 'resources/templateflow/tpl-MNI152NLin6Asym/tpl-MNI152NLin6Asym_res-04_desc-brain_T1w.nii.gz'
-  T2w: 'resources/templateflow/tpl-MNI152NLin6Asym/tpl-MNI152NLin6Asym_res-04_desc-brain_T2w.nii.gz'
-  GM: 'resources/templateflow/tpl-MNI152NLin6Asym/FSL_FAST/tpl-MNI152NLin6Asym_res-04_desc-brain_T1w_prob_1.nii.gz'
-  WM: 'resources/templateflow/tpl-MNI152NLin6Asym/FSL_FAST/tpl-MNI152NLin6Asym_res-04_desc-brain_T1w_prob_2.nii.gz'
-
 #will register cohort templates to the std template after they are generated
 std_template_name: 'MNI152NLin6Asym'
 
@@ -73,16 +56,34 @@ run_cohort:
 run_iter: 
 
 #this is the iter which is exported into templateflow format
-max_iters: 8
+max_iters: 10
 
 
 resample_init_template: False #set this True to resample init template to below dims 
 # WARNING - changing this can significantly alter memory usage and run-time -- 
-resample_vox_dims: 
- - 1
- - 1
- - 1
+resample_init: '100x100x100%'
 
+pad_init: '384x384x100'
+
+#when updating template at each iteration 
+resample_at_iter:
+ '6': '200x200x200%'
+
+greedy_smoothing_schedule:
+  - '3vox 2vox'
+  - '3vox 2vox'
+  - '3vox 2vox'
+  - '3vox 2vox'
+  - '3vox 2vox'
+  - '3vox 2vox'
+  - '3vox 2vox'
+  - '3vox 2vox'
+  - '2vox 1vox'
+  - '2vox 1vox'
+  - '2vox 1vox'
+
+#greedy_smoothing: '1.732vox 0.707vox' #default
+#greedy_smoothing: '3vox 2vox'
 
 
 #should be at least 2.3.4 (includes --random-seed option, and fixes some argparsing bugs)
