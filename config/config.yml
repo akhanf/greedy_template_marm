@@ -9,7 +9,26 @@ in_images:
 init_template:
   T2w: 'results/preproc/sub-Birk/sub-Birk_desc-pad_T2w.nii.gz'
 
+std_template:
+  T2w: 'resources/MBM_v3/template_T2w_nosharp.nii.gz'
 
+
+std_6tt_probseg: 'resources/MBM_v3/segmentation_six_types_prob_{labelnum}_{label}.nii.gz'
+std_3tt_probseg: 'resources/MBM_v3/segmentation_three_types_prob_{labelnum}_{label}.nii.gz'
+std_mask: 'resources/MBM_v3/mask_brain.nii.gz'
+
+tissue_3tt:
+  'gray': 1
+  'white': 2
+  'csf': 3
+
+tissue_6tt:
+  'corticalgray': 1
+  'subcorticalgray': 2
+  'white': 3
+  'csf': 4
+  'vessel': 5
+  'other': 6
 
 #for naming the final files in templateflow output
 bids_suffix:
@@ -49,7 +68,7 @@ template_description_extras:
 
 
 #will register cohort templates to the std template after they are generated
-std_template_name: 'MNI152NLin6Asym'
+std_template_name: 'MBMv3'
 
 #keep this empty, is set by command-line ( --config run_iter=1 or --config run_cohort=young)
 run_cohort: 

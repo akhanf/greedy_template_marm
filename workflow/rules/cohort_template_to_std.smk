@@ -5,7 +5,7 @@
 
 rule reg_cohort_template_to_std:
     input:
-        std_template = [ config['init_template'][channel]  for channel in channels ],
+        std_template = [ config['std_template'][channel]  for channel in channels ],
         cohort_template =  expand('results/cohort-{{cohort}}/iter_{iteration}/template_{channel}.nii.gz',iteration=config['max_iters'],channel=channels)
     params:
         input_fixed_moving = lambda wildcards, input: [f'-i {fixed} {moving}' for fixed,moving in zip(input.std_template, input.cohort_template) ],
@@ -13,6 +13,7 @@ rule reg_cohort_template_to_std:
     output:
         warp = 'results/cohort-{cohort}/reg_to_{std_template}/cohort-{cohort}_to-{std_template}_1Warp.nii.gz',
         invwarp = 'results/cohort-{cohort}/reg_to_{std_template}/cohort-{cohort}_to-{std_template}_1InverseWarp.nii.gz',
+        moments_xfm_ras = 'results/cohort-{cohort}/reg_to_{std_template}/cohort-{cohort}_to-{std_template}_moments_ras.txt',
         affine_xfm_ras = 'results/cohort-{cohort}/reg_to_{std_template}/cohort-{cohort}_to-{std_template}_affine_ras.txt',
         warped = expand('results/cohort-{cohort}/reg_to_{std_template}/cohort-{cohort}_to-{std_template}_WarpedToTemplate_{channel}.nii.gz',channel=channels,allow_missing=True)
         
@@ -25,10 +26,12 @@ rule reg_cohort_template_to_std:
         time = 60
     group: 'reg_to_std'
     shell: 
-        #affine first
-        'greedy -d 3 -threads {threads} -a -m NCC 2x2x2 {params.input_fixed_moving} -o {output.affine_xfm_ras} -ia-image-centers -n 100x50x10 &> {log} && '
+        #moments first
+        'greedy -d 3 -m NMI -threads {threads} -moments 2  {params.input_fixed_moving} -o {output.moments_xfm_ras} &> {log} && '
+        #then affine
+        'greedy -d 3 -threads {threads} -ia {output.moments_xfm_ras} -a -m NMI {params.input_fixed_moving} -o {output.affine_xfm_ras}  -n 100x50x10 &>> {log} && '
         #then deformable:
-        'greedy -d 3 -threads {threads} -m NCC 2x2x2 {params.input_fixed_moving} -it {output.affine_xfm_ras} -o {output.warp} -oinv {output.invwarp} -n 100x50x10 &>> {log} && '
+        'greedy -d 3 -threads {threads} -m NMI {params.input_fixed_moving} -it {output.affine_xfm_ras} -o {output.warp} -oinv {output.invwarp} -n 100x50x10 &>> {log} && '
 
         #and finally warp the moving image
         'greedy -d 3 -threads {threads} -rf {input.std_template[0]} {params.input_moving_warped} -r {output.warp} {output.affine_xfm_ras} &>> {log}'
@@ -52,7 +55,7 @@ def get_inputs_composite_subj_to_std (wildcards):
         'cohort2std_affine_xfm_ras': f'results/cohort-{cohort}/reg_to_{std_template}/cohort-{cohort}_to-{std_template}_affine_ras.txt',
         'subj2cohort_warp': f'results/cohort-{cohort}/iter_{iteration}/sub-{subject}_1Warp.nii.gz',
         'subj2cohort_affine_xfm_ras': f'results/cohort-{cohort}/iter_{iteration}/sub-{subject}_affine_ras.txt',
-        'ref_std': config['init_template'][channels[0]] }
+        'ref_std': config['std_template'][channels[0]] }
       
 
 rule create_composite_subj_to_std:
@@ -65,6 +68,7 @@ rule create_composite_subj_to_std:
           ' -r {input.cohort2std_warp} {input.cohort2std_affine_xfm_ras} '
           '  {input.subj2cohort_warp} {input.subj2cohort_affine_xfm_ras} '
           ' -rc {output.subj2std_warp}'
+
 
 
 
@@ -103,5 +107,35 @@ rule create_composite_subj_to_std_inverse:
           ' {input.cohort2std_invwarp} '
           ' -rc {output.subj2std_invwarp}'
 
+
+rule map_6tt_probseg_to_subj:
+    input: 
+        seg = lambda wildcards: config['std_6tt_probseg'].format(labelnum=config['tissue_6tt'][wildcards.label], label=wildcards.label),
+        subj2std_invwarp = 'results/composite/sub-{subject}_to-{std_template}_via-cohort_CompositeInverseWarp.nii.gz',
+        ref = bids(root='results/preproc',suffix='T2w.nii.gz',desc='n4',subject='{subject}'),
+    output:
+        seg = 'results/atlasseg-{std_template}/sub-{subject}/sub-{subject}_label-{label}_desc-6tt_probseg.nii.gz'
+    shell:
+        'greedy -d 3 -rf {input.ref} -r {input.subj2std_invwarp} -rm {input.seg} {output.seg}'
+
+rule map_3tt_probseg_to_subj:
+    input: 
+        seg = lambda wildcards: config['std_3tt_probseg'].format(labelnum=config['tissue_3tt'][wildcards.label], label=wildcards.label),
+        subj2std_invwarp = 'results/composite/sub-{subject}_to-{std_template}_via-cohort_CompositeInverseWarp.nii.gz',
+        ref = bids(root='results/preproc',suffix='T2w.nii.gz',desc='n4',subject='{subject}'),
+    output:
+        seg = 'results/atlasseg-{std_template}/sub-{subject}/sub-{subject}_label-{label}_desc-3tt_probseg.nii.gz'
+    shell:
+        'greedy -d 3 -rf {input.ref} -r {input.subj2std_invwarp} -rm {input.seg} {output.seg}'
+
+rule map_mask_to_subj:
+    input: 
+        seg = config['std_mask'],
+        subj2std_invwarp = 'results/composite/sub-{subject}_to-{std_template}_via-cohort_CompositeInverseWarp.nii.gz',
+        ref = bids(root='results/preproc',suffix='T2w.nii.gz',desc='n4',subject='{subject}'),
+    output:
+        seg = 'results/atlasseg-{std_template}/sub-{subject}/sub-{subject}_desc-brain_mask.nii.gz'
+    shell:
+        'greedy -d 3 -rf {input.ref} -r {input.subj2std_invwarp} -rm {input.seg} {output.seg} -ri NN'
 
 

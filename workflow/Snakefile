@@ -32,6 +32,23 @@ rule all_iter:
     input:
          expand('results/cohort-{cohort}/iter_{iter}/template_{channel}.nii.gz',cohort=cohorts,channel=channels,iter=config['max_iters'])
 
+
+
+rule all_subj_seg_atlas:
+    input:
+        expand('results/atlasseg-{std_template}/sub-{subject}/sub-{subject}_desc-brain_mask.nii.gz',subject=all_subjects,std_template=config['std_template_name']),
+        expand('results/atlasseg-{std_template}/sub-{subject}/sub-{subject}_label-{label}_desc-{desc}_probseg.nii.gz',subject=all_subjects,std_template=config['std_template_name'],label=config['tissue_3tt'].keys(),desc='3tt'),
+        expand('results/atlasseg-{std_template}/sub-{subject}/sub-{subject}_label-{label}_desc-{desc}_probseg.nii.gz',subject=all_subjects,std_template=config['std_template_name'],label=config['tissue_6tt'].keys(),desc='6tt'),
+
+
+rule all_composite_warps:
+    input: expand('results/composite/sub-{subject}_to-{template}_via-cohort_{warptype}.nii.gz',\
+                    template=config['std_template_name'],\
+                    warptype=['CompositeWarp','CompositeInverseWarp'],\
+                    subject=all_subjects)
+
+
 include: 'rules/preproc_t2.smk'
 include: 'rules/ants_template.smk'
+include: 'rules/cohort_template_to_std.smk'
 
