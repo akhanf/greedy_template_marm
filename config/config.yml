@@ -65,9 +65,10 @@ resample_init: '100x100x100%'
 
 pad_init: '384x384x100'
 
+
 #when updating template at each iteration 
 resample_at_iter:
- '6': '200x200x200%'
+ '6': '384x384x200vox'
 
 greedy_smoothing_schedule:
   - '3vox 2vox'

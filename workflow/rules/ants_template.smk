@@ -45,7 +45,7 @@ rule reg_to_template:
         affine_xfm_ras = 'results/cohort-{cohort}/iter_{iteration}/sub-{subject}_affine_ras.txt',
         warped = expand('results/cohort-{cohort}/iter_{iteration}/sub-{subject}_WarpedToTemplate_{channel}.nii.gz',channel=channels,allow_missing=True)
     log: 'logs/reg_to_template/cohort-{cohort}/iter_{iteration}_sub-{subject}.log'
-    threads: 4
+    threads: 6
     group: 'reg'
     container: config['singularity']['itksnap']
     resources:
